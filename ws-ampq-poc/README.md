@@ -26,6 +26,7 @@ Broker on heroku :
 
 ## Scenario setup - RabbitMq
 Rabbitmq-server
+https://www.vultr.com/docs/how-to-install-rabbitmq-on-centos-7
 
 ### Init slave
 ``` 
