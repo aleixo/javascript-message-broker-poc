@@ -26,8 +26,13 @@ module.exports = class BrokerService extends EventEmitter {
         this.slavesPublisher = slavesPublisher.map( slave => {
             return `amqp://${slave}`;
         });                      
-    }
-    
+    }        
+
+    /**
+     * Start the master discovery process.
+     * 
+     * There is a timeout. Each tick, will try to connect to master or slave
+     */
     startMasterDiscovery() {    
         this.discoverdMaster = false    
         console.log('[BROKER SERVICE] Master lookup');
@@ -41,6 +46,11 @@ module.exports = class BrokerService extends EventEmitter {
         });
     }
 
+    /**
+     * Force logout remaining connections if active.
+     * 
+     * Just to prevent something to be connected even if it is not used.     
+     */
     forceLogout(channels) {
         this.activeChannels = channels.filter( channel => {
             try{
@@ -54,6 +64,9 @@ module.exports = class BrokerService extends EventEmitter {
         }); 
     }
 
+    /**
+     * Consume one queue
+     */
     consume(queue, channel ,ack = false, exchange = null, prefetch = 0, slave = undefined, slaveIndes = 0) {        
         amqp.connect(slave ? slave : this.brokerUriConsumer, (err, conn) => {
             if (err && err.code === this.CONN_REFUSED_ERR) {                               
@@ -86,7 +99,8 @@ module.exports = class BrokerService extends EventEmitter {
                 }, (err, q) => {
                     console.log('[BROKER SERVICE] Waiting for logs.',q);
                     exchange !== null && ch.bindQueue(q.queue, exchange.name, queue.key);
-                    ch.consume(q.queue, (msg) => {                        
+                    ch.consume(q.queue, (msg) => {  
+                        console.log(`[BROKER SERVICE] New data on ${queue.key}`)                                         
                         this.emit('received_queue_data', queue, msg, channel, () => ack && ch.ack(msg) );
                     }, {noAck: !ack});
                 });
@@ -94,6 +108,9 @@ module.exports = class BrokerService extends EventEmitter {
         });
     }
 
+    /** 
+     * Publish on one exchange
+    */
     publish(exchange, key, msg, slave=undefined, slaveIndes=0) {
         amqp.connect(slave ? slave : this.brokerUriProducer, (err, conn) => {
             if (err && err.code === this.CONN_REFUSED_ERR) {                               
@@ -107,12 +124,14 @@ module.exports = class BrokerService extends EventEmitter {
                     return;                     
                 }
                 return this.publish(exchange, key,msg, this.slavesPublisher[slaveIndes], newSlaveIndex);
-            }            
-                     
+            }                           
+            if(!conn) {
+                return this.publish(exchange, key,msg, this.slavesPublisher[slaveIndes], 0);
+            }         
             this.isBrokerConnected = true;
             conn.on('close',this.onConnectionClose.bind(this));
 
-            conn.createChannel( (err, ch) => {                        
+            conn.createChannel( (err, ch) => {                                
                 ch.assertExchange(exchange.name, exchange.type, {
                     durable: exchange.durable,                    
                     autoDelete: exchange.autoDelete,                    
@@ -123,17 +142,77 @@ module.exports = class BrokerService extends EventEmitter {
                     contentType: 'application/json',
                     persistent: msg.persistent
                 });
-                console.log(`[BROKER SERVICE] New publish in ${key}`);
+                console.log(`[BROKER SERVICE] New publish ${key}`);
             });        
         });
     }
 
+    /**
+     * Utility method to consume several queues from several types.
+     * 
+     * It even sees if, depending on the queue we are trying to consume, it should publish enything.
+     * It is used for the spark on each channel.
+     */
+    consumeChannels(channels, queueType, spark=undefined, userId=undefined, socketChannel=undefined, shoudAckMsgs = true) {
+        channels.forEach( channel => {
+            queueType.forEach( type => {
+                const queue = {
+                    name : this.configs[channel][type].queue.name,
+                    durable : this.configs[channel][type].queue.durable,
+                    autoDelete : this.configs[channel][type].queue.autoDelete,
+                    exclusive : this.configs[channel][type].queue.exclusive,
+                    key : this.configs[channel][type].queue.bindingKey,
+                }
+                const exchange = {
+                    name : this.configs[channel][type].exchange.name,
+                    type : this.configs[channel][type].exchange.type,
+                }
+                this.consume(queue, this.configs[channel].channel, true, exchange);
+            })        
+        })  
+        this.publishSparkIfNeeded(channels, userId, spark, socketChannel)      
+    }
+
+    /**
+     * Utility method to publish on a give exchange. 
+     * 
+     * Its just used internally. Not really needed, it is here dont know why. TODO: remove it
+     */
+    publishInExchange(channel, queueType, msg, persistMsg = true) {
+        const exchange = {
+            name : this.configs[channel][queueType].exchange.name,
+            type : this.configs[channel][queueType].exchange.type,
+            durable: this.configs[channel][queueType].exchange.durable,
+            autoDelete: this.configs[channel][queueType].exchange.autoDelete,
+        }
+        const routingKey = this.configs[channel][queueType].queue.bindingKey;      
+        this.publish(exchange, routingKey, {persistent : persistMsg, payload : JSON.stringify(msg)});
+    }
+
+    /**
+     * Method to publish on sparks fanout new mappings if needed.
+     */
+    publishSparkIfNeeded(channels, userId=undefined, spark=undefined, socketChannel=undefined) {        
+        if (channels[0] !== 'SPARKS' && spark) {     
+            setInterval( () => {
+                const msg = {userId: userId, currSocket : spark.id, socketChannel : socketChannel}
+                this.publishInExchange('SPARKS', ['pub_sub'], msg, false)
+            },2000);        
+        }
+    }
+
+    /**
+     * Handler to fire closed_connection on connection close
+     */
     onConnectionClose() {    
         console.log('[BROKER SERVICE] ON CONNECTION CLOSE')                          
         this.isBrokerConnected && this.emit('closed_connection');
         this.isBrokerConnected = false;
     }
 
+    /**
+     * Handler to fire dicovered_master when master was discovered
+     */
     onMasterDiscovery() {           
         if(this.discoverdMaster) {
             return;

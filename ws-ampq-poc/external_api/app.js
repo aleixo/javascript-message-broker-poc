@@ -1,38 +1,26 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-
+const configs = require('../settings/configs.json');
 const BrokerService = require('../shared/BrokerService');
 
+const QueueModel = require('../shared/QueueModel');
+const ExchangeModel = require('../shared/ExchangeModel');
+const MessageModel = require('../shared/MessageModel');
+
 const environment = process.argv[2];
-const brokerService = new BrokerService({
-    rx: environment === 'localhost' ? 'localhost:5672' : '3GdtrY_s:78ov3IyCFAxyMNpysTBMt8AgR38PZnik@sad-silver-53.bigwig.lshift.net:10003/6TAe0JLKstBE',
-    tx: environment === 'localhost' ? 'localhost:5672' : '3GdtrY_s:78ov3IyCFAxyMNpysTBMt8AgR38PZnik@sad-silver-53.bigwig.lshift.net:10002/6TAe0JLKstBE',
-}, ['localhost:5674'], ['localhost:5674']);
+const brokerMasterConn = {
+    rx : environment === 'localhost' ? configs.broker.localhost_master.rx : configs.broker.heroku.rx,
+    tx : environment === 'localhost' ? configs.broker.localhost_master.tx : configs.broker.heroku.tx,
+}
+const brokerService = new BrokerService(brokerMasterConn, [configs.broker.localhost_master.rx], [configs.broker.localhost_master.tx]);
 
 const app = express(); 
 const router = express.Router();
 
-function publish(data, channel) {
-    const exchange = {
-        name : brokerService.configs[channel].external.exchange.name,
-        type : brokerService.configs[channel].external.exchange.type,
-        durable: brokerService.configs[channel].external.exchange.durable,
-        autoDelete: brokerService.configs[channel].external.exchange.autoDelete,
-    }
-    const routingKey = brokerService.configs[channel].external.queue.bindingKey;
-    const msg = {
-        payload : {
-            unicast : data.unicast,
-            multicast : data.multicast,
-            broadcast : data.broadcast,
-            sparkId : data.sparkId || '',
-            sparkIds : data.sparkIds || [],
-            message: data.message,
-            work_time : data.work_time || 0,
-        },
-        persistent: true 
-    }
-    brokerService.publish(exchange, routingKey, msg);    
+function publish(data, channel) {    
+    const exchange = new ExchangeModel(channel,'external').parsed;    
+    const message = new MessageModel(data).parsed;    
+    brokerService.publish(exchange, exchange.key, message);    
 }
 
 router.post('/voice', (req, res) => {    

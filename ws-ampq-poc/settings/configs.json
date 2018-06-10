@@ -1,10 +1,16 @@
 {
-    "mongo": {
-        "username": "diogo_aleixo",
-        "pass": "dmaaac3",
-        "host": "ds261969.mlab.com",
-        "port": "61969",
-        "database":"heroku_21f9wz06",
-        "batchSize": 100000
-      }
+    "broker": {
+        "heroku" : {
+            "rx" : "3GdtrY_s:78ov3IyCFAxyMNpysTBMt8AgR38PZnik@sad-silver-53.bigwig.lshift.net:10003/6TAe0JLKstBE",
+            "tx" : "3GdtrY_s:78ov3IyCFAxyMNpysTBMt8AgR38PZnik@sad-silver-53.bigwig.lshift.net:10002/6TAe0JLKstBE"
+        },
+        "localhost_master" : {
+        "rx" : "localhost:5672",
+        "tx" : "localhost:5672"
+        },
+        "localhost_slave" : {
+        "rx" : "localhost:5674",
+        "tx" : "localhost:5674"
+        }
+    }
 }

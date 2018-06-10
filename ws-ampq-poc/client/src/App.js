@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import uuidv4 from 'uuid/v4';
 import logo from './logo.svg';
 import './App.css';
 import PrimusChat from './lib/primus_CHAT';
@@ -19,6 +20,10 @@ const TICKETS_CHANNEL = 'TICKETS';
 const VOICE_BACKUP_PORT = 5001;
 const CHAT_BACKUP_PORT = 5002;
 const TICKETS_BACKUP_PORT = 5003;
+
+const voiceUserUuid = uuidv4();
+const chatUserUuid = uuidv4();
+const ticketsUserUuid = uuidv4();
 
 let primusTickets;
 let primusVoice;
@@ -71,7 +76,7 @@ class App extends Component {
           hasTickets : this.state.sockets.hasTickets,
           hasChat : this.state.sockets.hasChat,
         }}); 
-      primusVoice.writeAndWait(new SocketMessage(true, 'VOICE MESSAGE', 'ACTION', VOICE_CHANNEL, false, 0, 1).data);        
+      primusVoice.writeAndWait(new SocketMessage(true, 'VOICE MESSAGE', 'ACTION', VOICE_CHANNEL, false, 0, voiceUserUuid).data);        
     });          
     primusVoice.on('data', (data) => {   
       console.log('[VOICE SOCKET] ',data)   
@@ -122,7 +127,7 @@ class App extends Component {
           hasTickets : this.state.sockets.hasTickets,
           hasChat : true,
         }});
-      primusChat.write(new SocketMessage(true, 'CHAT MESSAGE', 'ACTION', CHAT_CHANNEL, false, 0, 1).data);
+      primusChat.write(new SocketMessage(true, 'CHAT MESSAGE', 'ACTION', CHAT_CHANNEL, false, 0, 1, uuidv4()).data);
     });      
     primusChat.on('data', (data) => {
       console.log('[CHAT SOCKET] ',data)  
@@ -166,7 +171,7 @@ class App extends Component {
           hasTickets : true,
           hasChat : this.state.sockets.hasChat,
         }});
-      primusTickets.write(new SocketMessage(true, 'TICKETS MESSAGE', 'ACTION', TICKETS_CHANNEL, false, 0, 1).data);
+      primusTickets.write(new SocketMessage(true, 'TICKETS MESSAGE', 'ACTION', TICKETS_CHANNEL, false, 0, 1, uuidv4()).data);
     });      
     primusTickets.on('data', (data) => {   
       console.log('[TICKETS SOCKET] ',data)     

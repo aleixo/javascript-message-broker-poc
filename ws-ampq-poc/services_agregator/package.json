@@ -16,6 +16,7 @@
     "lodash": "^4.17.10",
     "morgan": "^1.9.0",
     "primus": "^7.2.2",
-    "primus-responder": "^1.0.4"
+    "primus-responder": "^1.0.4",
+    "winston": "^2.4.2"
   }
 }
