@@ -63,12 +63,7 @@ class App extends Component {
           hasChat : this.state.sockets.hasChat,
         }});
     }
-    primusVoice = new PrimusVoice(`http://localhost:${port}`, {
-      reconnect: {          
-          min: 500 // Number: The minimum delay before we try reconnect.
-        , retries: 1 // Number: How many times we should try to reconnect.
-      }
-    });              
+    primusVoice = new PrimusVoice(`http://localhost:${port}`, { reconnect: { min: 500 , retries: 1 } });              
     primusVoice.on('open', () => {         
       this.setState({
         sockets : {
@@ -82,9 +77,7 @@ class App extends Component {
       console.log('[VOICE SOCKET] ',data)   
       this.prevSocketId.voice = data.id       
     });
-    primusVoice.on('end', (data) => {   
-      console.log('CON END')    
-    });
+    primusVoice.on('end', (data) => { console.log('CON END') });
     primusVoice.on('reconnect failed', (err, opts) => {
       this.setState({
         sockets : {
@@ -114,12 +107,7 @@ class App extends Component {
           hasChat : false,
         }});
     }
-    primusChat = new PrimusChat(`http://localhost:${port}`, {
-      reconnect: {          
-          min: 500 // Number: The minimum delay before we try reconnect.
-        , retries: 1 // Number: How many times we should try to reconnect.
-      }
-    });                    
+    primusChat = new PrimusChat(`http://localhost:${port}`, { reconnect: { min: 500 , retries: 1 } }); 
     primusChat.on('open', () => {      
       this.setState({
         sockets : {
@@ -127,12 +115,13 @@ class App extends Component {
           hasTickets : this.state.sockets.hasTickets,
           hasChat : true,
         }});
-      primusChat.write(new SocketMessage(true, 'CHAT MESSAGE', 'ACTION', CHAT_CHANNEL, false, 0, 1, uuidv4()).data);
+      primusChat.writeAndWait(new SocketMessage(true, 'CHAT MESSAGE', 'ACTION', CHAT_CHANNEL, false, 0, 1, uuidv4()).data);
     });      
     primusChat.on('data', (data) => {
       console.log('[CHAT SOCKET] ',data)  
       this.prevSocketId.chat = data.id    
-    }); 
+    });
+    primusChat.on('end', (data) => { console.log('CON END') }); 
     primusChat.on('reconnect failed', (err, opts) => {
       this.setState({
         sockets : {
@@ -146,6 +135,10 @@ class App extends Component {
           }, 2000)       
         });
     });
+    primusChat.on('request', function(data, done) {
+      console.log('ON REQUEST', data);
+      done('this is the response');
+  });
   }
 
   connectTickets(port) {
@@ -158,12 +151,7 @@ class App extends Component {
           hasChat : this.state.sockets.hasChat,
         }});
     }
-    primusTickets = new PrimusTickets(`http://localhost:${port}`, {
-      reconnect: {          
-          min: 500 // Number: The minimum delay before we try reconnect.
-        , retries: 1 // Number: How many times we should try to reconnect.
-      }
-    });                  
+    primusTickets = new PrimusTickets(`http://localhost:${port}`, { reconnect: { min: 500 , retries: 1 } });                   
     primusTickets.on('open', () => {      
       this.setState({
         sockets : {
@@ -177,6 +165,7 @@ class App extends Component {
       console.log('[TICKETS SOCKET] ',data)     
       this.prevSocketId.tickets = data.id       
     });  
+    primusTickets.on('end', (data) => { console.log('CON END') });
     primusTickets.on('reconnect failed', (err, opts) => {
       this.setState({
         sockets : {
@@ -190,6 +179,10 @@ class App extends Component {
           }, 2000)       
         });
     });  
+    primusTickets.on('request', function(data, done) {
+      console.log('ON REQUEST', data);
+      done('this is the response');
+  });
   }
 
   handleFormChange(e) {    

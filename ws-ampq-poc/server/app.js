@@ -28,7 +28,7 @@ brokerService.consumeChannels(['VOICE','CHAT','TICKETS'],['external','in']);
  * Act when the broker service receive data on the queue.
  * For the POC sake, we only forward received queue data to the out exchange
  */
-brokerService.on('received_queue_data', (queue, data, channel, finish) => {     
+brokerService.on('received_queue_data', (queue, data, channel, finish) => {         
     const exchange = new ExchangeModel(channel, 'out').parsed;   
     queueDataManager.onQueueDataReceivedPipeTo(channel, exchange, 'out', data, finish);
 })

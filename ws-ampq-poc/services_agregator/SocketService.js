@@ -75,6 +75,7 @@ module.exports = class SocketService extends EventEmitter {
      * Send via WS one message to a given user
      */
     sendTo(sparkId, msg, finishTransmission) {          
+        finishTransmission();
         if (!Object.keys(this.SPARKS).includes(sparkId) || typeof this.SPARKS[sparkId] !== 'object') {
             console.log('[SOCKET SERVICE] No user logged to receive the message')              
             return;
@@ -82,8 +83,7 @@ module.exports = class SocketService extends EventEmitter {
         console.log('[SOCKET SERVICE] Will send unicast message', this.SPARKS)
         this.SPARKS[sparkId].writeAndWait(msg, (response) => {
             console.log('[SOCKET SERVICE] Message sent')            
-        });        
-        finishTransmission();
+        });                
     }
     
     /**

@@ -5,12 +5,14 @@ const brokerConfigs = require('../settings/brokerConfigs.json');
 module.exports = class BrokerService extends EventEmitter {
     constructor(host, slavesConsumer=[], slavesPublisher=[]) {
         super();
-
+        console.log('[BROKER SERVICE] New connection to '+JSON.stringify(host));
         this.masterDiscoveryTimeout = 3000;
         this.CONN_REFUSED_ERR = 'ECONNREFUSED';
         this.CHANNEL_CLOSE_ERR = 'Channel closed'
         this.isBrokerConnected = false;
         this.discoverdMaster = false;    
+
+        this.publishedSparkIds = [];
 
         this.brokerUriConsumer = `amqp://${host.rx}`;
         this.brokerUriProducer = `amqp://${host.tx}`;
@@ -26,6 +28,7 @@ module.exports = class BrokerService extends EventEmitter {
         this.slavesPublisher = slavesPublisher.map( slave => {
             return `amqp://${slave}`;
         });                      
+        
     }        
 
     /**
@@ -39,7 +42,8 @@ module.exports = class BrokerService extends EventEmitter {
         amqp.connect(this.brokerUriProducer, (err, conn) => {            
             if (err && err.code === 'ECONNREFUSED') {
                 return setTimeout( () => {
-                    this.startMasterDiscovery();                    
+                    this.startMasterDiscovery();   
+                    conn.close();                 
                 }, this.masterDiscoveryTimeout);                
             }                        
             this.onMasterDiscovery()            
@@ -101,7 +105,10 @@ module.exports = class BrokerService extends EventEmitter {
                     exchange !== null && ch.bindQueue(q.queue, exchange.name, queue.key);
                     ch.consume(q.queue, (msg) => {  
                         console.log(`[BROKER SERVICE] New data on ${queue.key}`)                                         
-                        this.emit('received_queue_data', queue, msg, channel, () => ack && ch.ack(msg) );
+                        this.emit('received_queue_data', queue, msg, channel, () => {
+                            ack && ch.ack(msg);
+                            !ack && conn.close();
+                        } );
                     }, {noAck: !ack});
                 });
             });
@@ -131,7 +138,7 @@ module.exports = class BrokerService extends EventEmitter {
             this.isBrokerConnected = true;
             conn.on('close',this.onConnectionClose.bind(this));
 
-            conn.createChannel( (err, ch) => {                                
+            conn.createConfirmChannel( (err, ch) => {                                
                 ch.assertExchange(exchange.name, exchange.type, {
                     durable: exchange.durable,                    
                     autoDelete: exchange.autoDelete,                    
@@ -141,7 +148,8 @@ module.exports = class BrokerService extends EventEmitter {
                 ch.publish(exchange.name, key, new Buffer.from(newMsg), {
                     contentType: 'application/json',
                     persistent: msg.persistent
-                });
+                }, () => { conn.close() });
+                
                 console.log(`[BROKER SERVICE] New publish ${key}`);
             });        
         });
@@ -192,11 +200,16 @@ module.exports = class BrokerService extends EventEmitter {
     /**
      * Method to publish on sparks fanout new mappings if needed.
      */
-    publishSparkIfNeeded(channels, userId=undefined, spark=undefined, socketChannel=undefined) {        
-        if (channels[0] !== 'SPARKS' && spark) {     
+    publishSparkIfNeeded(channels, userId=undefined, spark=undefined, socketChannel=undefined) {                    
+        if (channels[0] !== 'SPARKS' && spark) {                              
             setInterval( () => {
+                if (this.publishedSparkIds.indexOf(spark.id) !== -1 ){
+                    return;
+                }
+                this.publishedSparkIds.push(spark.id);                
                 const msg = {userId: userId, currSocket : spark.id, socketChannel : socketChannel}
                 this.publishInExchange('SPARKS', ['pub_sub'], msg, false)
+                console.log('[BROKER SERVICE] PUBLISHED SPARK IDS ', JSON.stringify(this.publishedSparkIds))
             },2000);        
         }
     }

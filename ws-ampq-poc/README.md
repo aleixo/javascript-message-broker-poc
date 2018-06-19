@@ -4,15 +4,30 @@ This is one poc with frontend talking via `ws` to one services layer and then th
 
 ```
 
-THE WHOLE THING LACK TESTING AND I NEED TO SPEND TIME MAKING EVERYTHING BULLET PROOF. BUT FOR THE POC´S SAKE IT IS OK. SO PLEASE BE KIND AND SUBMIT ONE ISSUE.
+THE WHOLE THING LACK TESTING AND I NEED TO SPEND TIME MAKING EVERYTHING BULLET PROOF. BUT FOR THE POC´S SAKE IT IS OK. SO PLEASE BE KIND.
 
 ```
 
+## Folder structure / services
+- client - React client that will connect to one services agregator. The client will listen on port 3000;
+- services_agregator - Service that will receive client connections and bridge to rabbit. This service 
+    has to expose three diferent ports so that client connects to (4001,4002,4003). If you want fail-over, start the new service with 5001, 5002, 5003 since it is what client is expecting.
+    The service will start publishing on a fanout(pub/sub) queue on a regular interval where agregators consume, so that all other agregators can ensure message delivery on fail-over scenario.
+- server - The actual server instance that will receive events from rabbit;
+- external_api - One api exposed with three POST routes on port 4000:
+    - /external/voice
+    - /external/chat
+    - /external/tickets
+- shared - Some shared classes between all the services. Should go as npm private modules.
+- settings - Has connection settings(configs.json), broker configurations settings(brokerConfigs.json) and one script to create all the system queues (for testing only)
+
 ## TODO
-- [ ] Some messages stick with the queue because of not beeing ack´d. THis may be because of the agregator failover. The original socked, never acks the original message Only the slave connection tries to do it, but ona diferent tag. 
 - [ ] The agregator failover does not seem to be behaving like it should on stress situations.
 - [ ] Guarantee the acknowledgement of all the messages in all the situations.
 - [ ] Configure messages ttl´s.
+- [x] Leaking socket connections.
+- [ ] Spark if persistence and make services_agregator stateless to support beeing all agregators down and persist communications.
+- [ ] Refactor Broker service to use promises
 
 ## Architecture
 
@@ -24,7 +39,10 @@ Broker on heroku :
 - Web interface - https://bigwig.lshift.net/management/192272/
 
 ## Scenario setup - RabbitMq
-Rabbitmq-server
+### Install server and management plugin
+- Install server - https://www.rabbitmq.com/download.html
+- Install management plugin - https://www.rabbitmq.com/management.html
+    - By default the management plugin comes with the user guest and password guest.
 
 ### Init slave
 ``` 
@@ -62,17 +80,20 @@ rabbitmqctl -n slave@localhost start_app
 - Happened to me that mnesia database was corrupted because i lost battery on my laptop. In order to fix that i issued the command `rabbitmq -n {node} force_boot`. Can be usefull in many situations
 
 ## Scenario setup - Nodes
-Please do not look at the code. Not my best face. Start two instance of each type to see the redundancy scenarios
+Please do not look at the code. Not my best face. Start two instance of each type to see the redundancy scenarios. You will need to install the dependencies on each service via `npm i`.
 
-Other thinf. Make 
+Each service is on the intuitive respective folder mentioned above.
 
-- Client - The client will connect to service_agregator master node in voice, chat and tickets on 4001, 4002 and 4003 ports respectively. The slave is one 5001, 5002, 5003.
-    - `yarn start`
-- external_api
+Please be concise with the broker you are connecting to. Or localhosting it or not. We can´t have two services communicating with diferent brokers.
+
+- Client.
     - `npm start`
-- server - You can ommit the localhost (third args parameter) and it will connect to heroku broker. 
+- services_agregator - Start the two instances for master and slave. 6th arg is the host where it will run, 3th, 4th and 5th are the Voice, chat and tickets ports respectively. The localhost arg will connect to whatever you put on configs.json file localhost* keys. If you omit localhost, it will connect to one broker setted up on heroku for you.
+    - `npm start 4001 4002 4003 localhost`
+    - `npm start 5001 5002 5003 localhost`    
+- server - he localhost arg will connect to whatever you put on configs.json file localhost* keys. If you omit localhost, it will connect to one broker setted up on heroku for you.
     - `npm start localhost`        
     - `npm start localhost`        
-- services_agregator - Start the two instances for master and slave.
-    - `npm localhost 4001 4002 4003`
-    - `npm localhost 5001 5002 5003`
+- external_api. The service will expose three POST routes
+    - `npm start 4000 localhost`
+
