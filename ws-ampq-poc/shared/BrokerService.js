@@ -27,7 +27,11 @@ module.exports = class BrokerService extends EventEmitter {
 
         this.slavesPublisher = slavesPublisher.map( slave => {
             return `amqp://${slave}`;
-        });                      
+        });      
+        
+        this.socketOptions = {
+            heartbeat: this.configs.heartbeat,
+        }
         
     }        
 
@@ -39,7 +43,7 @@ module.exports = class BrokerService extends EventEmitter {
     startMasterDiscovery() {    
         this.discoverdMaster = false    
         console.log('[BROKER SERVICE] Master lookup');
-        amqp.connect(this.brokerUriProducer, (err, conn) => {            
+        amqp.connect(this.brokerUriProducer, this.socketOptions, (err, conn) => {            
             if (err && err.code === 'ECONNREFUSED') {
                 return setTimeout( () => {
                     this.startMasterDiscovery();   
@@ -72,7 +76,7 @@ module.exports = class BrokerService extends EventEmitter {
      * Consume one queue
      */
     consume(queue, channel ,ack = false, exchange = null, prefetch = 0, slave = undefined, slaveIndes = 0) {        
-        amqp.connect(slave ? slave : this.brokerUriConsumer, (err, conn) => {
+        amqp.connect(slave ? slave : this.brokerUriConsumer, this.socketOptions,  (err, conn) => {
             if (err && err.code === this.CONN_REFUSED_ERR) {                               
                 console.log(`[BROKER SERVICE] [ERROR] CONNECTING TO BROKER. Will retry with slave index ${slaveIndes} URL:${this.slavesConsumer[slaveIndes]}`);
                 const newSlaveIndex = slaveIndes + 1;
@@ -119,7 +123,7 @@ module.exports = class BrokerService extends EventEmitter {
      * Publish on one exchange
     */
     publish(exchange, key, msg, slave=undefined, slaveIndes=0) {
-        amqp.connect(slave ? slave : this.brokerUriProducer, (err, conn) => {
+        amqp.connect(slave ? slave : this.brokerUriProducer,  this.socketOptions, (err, conn) => {
             if (err && err.code === this.CONN_REFUSED_ERR) {                               
                 console.log(`[ERROR] CONNECTING TO BROKER. Will retry with slave index ${slaveIndes} URL:${this.slavesPublisher[slaveIndes]}`);
                 const newSlaveIndex = slaveIndes + 1;

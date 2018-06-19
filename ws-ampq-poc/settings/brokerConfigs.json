@@ -1,4 +1,5 @@
 {
+    "heartbeat" : 60,
     "VOICE" : {
         "channel" : "VOICE",
         "external" : {            
